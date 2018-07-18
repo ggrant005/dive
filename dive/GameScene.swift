@@ -14,15 +14,19 @@ class GameScene: SKScene {
   
   private var mTriangle : SKShapeNode?
   
-  private var mMotion = CMMotionManager()
+  private var mMotionManager = CMMotionManager()
   
   private var mTimer : Timer?
   
-  private var mRoll = 0.0
+  private var mRollBuffer = [Double]()
+  private var mRollBufferIndex = 0
+  private var mRollBufferSize = 20
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   override func sceneDidLoad() {
+    
+    for _ in 0 ..< mRollBufferSize { mRollBuffer.append(0) }
     
     startGyros()
     createTriangle()
@@ -50,20 +54,26 @@ class GameScene: SKScene {
   //----------------------------------------------------------------------------
   func startGyros() {
     
-    if self.mMotion.isGyroAvailable {
-      self.mMotion.gyroUpdateInterval = 1.0 / 60.0
-      self.mMotion.startGyroUpdates()
+    if self.mMotionManager.isGyroAvailable {
+      self.mMotionManager.gyroUpdateInterval = 1.0 / 60.0
+      self.mMotionManager.startGyroUpdates()
       
       // Configure a timer to fetch the accelerometer data.
-      self.mTimer = Timer(fire: Date(), interval: (1.0/60.0),
-                         repeats: true, block: { (timer) in
+      self.mTimer = Timer(
+        fire: Date(),
+        interval: (1.0/60.0),
+        repeats: true,
+        block: { (timer) in
                           
-                          // Get the gyro data.
-                          if let data = self.mMotion.gyroData {
-                            //let pitch = data.rotationRate.x
-                            self.mRoll = data.rotationRate.y
-                            //let yaw = data.rotationRate.z
-                          }
+          // Get the gyro data.
+          if let data = self.mMotionManager.gyroData {
+            let pitch = data.rotationRate.x
+            let roll = data.rotationRate.y
+            let yaw = data.rotationRate.z
+            print("Roll: \(roll), Pitch: \(pitch), Yaw: \(yaw)")
+            
+            self.addToRollBuffer(roll)
+          }
       })
       
       // Add the timer to the current run loop.
@@ -79,22 +89,45 @@ class GameScene: SKScene {
       self.mTimer?.invalidate()
       self.mTimer = nil
       
-      self.mMotion.stopGyroUpdates()
+      self.mMotionManager.stopGyroUpdates()
     }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func addToRollBuffer(_ roll : Double) {
+    
+    self.mRollBuffer[self.mRollBufferIndex] = roll
+    if self.mRollBufferIndex == self.mRollBufferSize - 1 {
+      self.mRollBufferIndex = 0
+    } else {
+      self.mRollBufferIndex += 1
+    }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func getMeanRoll() -> CGFloat {
+    
+    var sum = 0.0
+    for roll in mRollBuffer {
+      sum += roll
+    }
+    
+    return CGFloat(sum / Double(mRollBufferSize))
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   func tiltTriangle() {
     
-    let Roll = CGFloat(mRoll)
-    let tilt = SKAction.rotate(byAngle: Roll * -.pi/180 / 10, duration: 0.1)
-    let translate = SKAction.moveBy(x: Roll * 1.3, y: 0, duration: 0.1)
+    let roll = getMeanRoll()
+    let tilt = SKAction.rotate(byAngle: roll * -.pi/180 / 10, duration: 0.1)
+    let translate = SKAction.moveBy(x: roll, y: 0, duration: 0.1)
     
     let move = SKAction.sequence([tilt, translate])
     let loop = SKAction.repeatForever(move)
     
-    // stop shaking
     // set horizontal to 0 roll
     
     
