@@ -49,31 +49,27 @@ class GameScene: SKScene {
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   func startGyros() {
-    
-    if self.mMotionManager.isDeviceMotionAvailable {
+    if mMotionManager.isGyroAvailable {
+      self.mMotionManager.gyroUpdateInterval = 1.0 / 60.0
+      self.mMotionManager.startGyroUpdates()
       
-      mMotionManager.startDeviceMotionUpdates(
-        to: OperationQueue.current!, withHandler: {
-          (deviceMotion, error) -> Void in
-          
-          if(error == nil) {
-            self.handleDeviceMotionUpdate(deviceMotion: deviceMotion!)
-          } else {
-            //handle the error
-          }
+      // Configure a timer to fetch the accelerometer data.
+      self.mTimer = Timer(fire: Date(), interval: (1.0/60.0),
+                         repeats: true, block: { (timer) in
+                          // Get the gyro data.
+                          if let data = self.mMotionManager.gyroData {
+                            let pitch = data.rotationRate.x
+                            let roll = data.rotationRate.y
+                            let yaw = data.rotationRate.z
+                            
+                            // Use the gyroscope data in your app.
+                            self.mRoll = CGFloat(roll)
+                          }
       })
+      
+      // Add the timer to the current run loop.
+      RunLoop.current.add(self.mTimer!, forMode: .defaultRunLoopMode)
     }
-  }
-  
-  //----------------------------------------------------------------------------
-  //----------------------------------------------------------------------------
-  func handleDeviceMotionUpdate(deviceMotion : CMDeviceMotion) {
-    let roll = deviceMotion.attitude.roll
-    let pitch = deviceMotion.attitude.pitch
-    let yaw = deviceMotion.attitude.yaw
-    print("Roll: \(roll), Pitch: \(pitch), Yaw: \(yaw)")
-    
-    mRoll = CGFloat(roll)
   }
   
   //----------------------------------------------------------------------------
@@ -93,13 +89,12 @@ class GameScene: SKScene {
   func tiltTriangle() {
     
     let roll = mRoll
-    let tilt = SKAction.rotate(byAngle: -roll / 10, duration: 0.01)
-    let translate = SKAction.moveBy(x: 0, y: 0, duration: 0.1)
+    let tilt = SKAction.rotate(byAngle: -roll / 100, duration: 0.01)
+    let translate = SKAction.moveBy(x: roll * 2, y: 0, duration: 0.1)
     
-    let move = SKAction.sequence([tilt, translate])
+    let move = SKAction.sequence([translate, tilt])
     
     mTriangle!.run(move)
-    print("Roll: \(String(describing: mTriangle?.zRotation))")
   }
 
   //----------------------------------------------------------------------------
