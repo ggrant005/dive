@@ -10,30 +10,48 @@ import CoreMotion
 import SpriteKit
 import GameplayKit
 
-class GameScene: SKScene {
+class GameScene: SKScene, SKPhysicsContactDelegate {
   
-  private var mTriangle : SKShapeNode?
+  private var mPlayer : SKShapeNode!
   
   private var mMotionManager = CMMotionManager()
   
   private var mTimer : Timer?
   
+  private var mPitch = CGFloat(0.0)
   private var mRoll = CGFloat(0.0)
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   override func sceneDidLoad() {
     
+    physicsWorld.gravity = CGVector(dx: 0.0, dy: -1.0)
+    physicsWorld.contactDelegate = self
+    
     startGyros()
-    createTriangle()
+    createPlayer()
+    createSquare()
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func createTriangle() {
+  func touchDown(atPoint pos: CGPoint) {
+    
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func touchUp(atPoint pos: CGPoint) {
+    
+    createSquare()
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func createPlayer() {
     
     let base = 90
-    let height = base * 2
+    let height = base / 2
     
     let path = UIBezierPath()
     path.move(to: CGPoint(x: 0, y: 0))
@@ -41,9 +59,40 @@ class GameScene: SKScene {
     path.addLine(to: CGPoint(x: base / 2, y: height))
     path.close()
     
-    self.mTriangle = SKShapeNode.init(path: path.cgPath)
-    self.mTriangle!.strokeColor = SKColor.green
-    self.addChild(self.mTriangle!)
+    let player = SKShapeNode.init(path: path.cgPath)
+    player.strokeColor = SKColor.green
+    player.lineWidth = 2.5
+    
+    player.physicsBody = SKPhysicsBody(edgeChainFrom: path.cgPath)
+    player.physicsBody!.contactTestBitMask = player.physicsBody!.collisionBitMask
+    player.physicsBody?.isDynamic = false
+    player.physicsBody?.contactTestBitMask = 0
+    
+    self.mPlayer = player
+    self.addChild(self.mPlayer)
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func createSquare() {
+    
+    let side = 30
+    let squareSize = CGSize(width: side, height: side)
+    
+    let square = SKShapeNode.init(rectOf: squareSize)
+    
+    let screen = UIScreen.main.bounds
+    square.position = CGPoint(x: 100, y: screen.height + 10)
+    square.strokeColor = .red
+    square.name = "square 1"
+    square.lineWidth = 2.5
+    
+    square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
+    square.physicsBody!.contactTestBitMask = square.physicsBody!.collisionBitMask
+    square.physicsBody?.isDynamic = true
+    square.physicsBody?.contactTestBitMask = 0
+    
+    self.addChild(square)
   }
   
   //----------------------------------------------------------------------------
@@ -58,12 +107,9 @@ class GameScene: SKScene {
                          repeats: true, block: { (timer) in
                           // Get the gyro data.
                           if let data = self.mMotionManager.gyroData {
-                            let pitch = data.rotationRate.x
-                            let roll = data.rotationRate.y
+                            self.mPitch = CGFloat(data.rotationRate.x)
+                            self.mRoll = CGFloat(data.rotationRate.y)
                             let yaw = data.rotationRate.z
-                            
-                            // Use the gyroscope data in your app.
-                            self.mRoll = CGFloat(roll)
                           }
       })
       
@@ -86,15 +132,17 @@ class GameScene: SKScene {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func tiltTriangle() {
+  func tiltPlayer() {
     
-    let roll = mRoll
-    let tilt = SKAction.rotate(byAngle: -roll / 100, duration: 0.01)
-    let translate = SKAction.moveBy(x: roll * 2, y: 0, duration: 0.1)
+    let tilt = SKAction.rotate(byAngle: -mRoll / 500, duration: 0.01)
+    let translate = SKAction.moveBy(
+      x: mRoll * 10,
+      y: -mPitch * 20,
+      duration: 0.1)
     
     let move = SKAction.sequence([translate, tilt])
     
-    mTriangle!.run(move)
+    mPlayer!.run(move)
   }
 
   //----------------------------------------------------------------------------
@@ -102,6 +150,6 @@ class GameScene: SKScene {
   override func update(_ currentTime: TimeInterval) {
     // Called before each frame is rendered
     
-    tiltTriangle()
+    tiltPlayer()
   }
 }
