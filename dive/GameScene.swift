@@ -16,7 +16,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   private var mMotionManager = CMMotionManager()
   
-  private var mTimer : Timer?
+  private var mGyroTimer : Timer?
+  private var mSquareTimer : Timer?
   
   private var mPitch = CGFloat(0.0)
   private var mRoll = CGFloat(0.0)
@@ -25,12 +26,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   override func sceneDidLoad() {
     
-    physicsWorld.gravity = CGVector(dx: 0.0, dy: -1.0)
+    physicsWorld.gravity = CGVector(dx: 0.0, dy: -2.0)
     physicsWorld.contactDelegate = self
     
     startGyros()
     createPlayer()
-    createSquare()
+    startSquares()
   }
   
   //----------------------------------------------------------------------------
@@ -43,15 +44,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func touchUp(atPoint pos: CGPoint) {
     
-    createSquare()
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   func createPlayer() {
     
-    let base = 90
-    let height = base / 2
+    let base = 180
+    let height = base / 4
     
     let path = UIBezierPath()
     path.move(to: CGPoint(x: 0, y: 0))
@@ -67,6 +67,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     player.physicsBody!.contactTestBitMask = player.physicsBody!.collisionBitMask
     player.physicsBody?.isDynamic = false
     player.physicsBody?.contactTestBitMask = 0
+    player.physicsBody!.friction = 0.0
     
     self.mPlayer = player
     self.addChild(self.mPlayer)
@@ -82,17 +83,31 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     let square = SKShapeNode.init(rectOf: squareSize)
     
     let screen = UIScreen.main.bounds
-    square.position = CGPoint(x: 100, y: screen.height + 10)
+    let randX = CGFloat(arc4random_uniform(UInt32(screen.width))) - screen.width / 2
+    square.position = CGPoint(x: randX, y: screen.height + 10)
     square.strokeColor = .red
-    square.name = "square 1"
     square.lineWidth = 2.5
     
     square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
     square.physicsBody!.contactTestBitMask = square.physicsBody!.collisionBitMask
     square.physicsBody?.isDynamic = true
     square.physicsBody?.contactTestBitMask = 0
+    square.physicsBody!.friction = 0.0
     
     self.addChild(square)
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func startSquares() {
+    
+    self.mSquareTimer = Timer(fire: Date(), interval: (30.0/60.0),
+                              repeats: true, block: { (timer) in
+                                self.createSquare()
+    })
+    
+    // Add the timer to the current run loop.
+    RunLoop.current.add(self.mSquareTimer!, forMode: .defaultRunLoopMode)
   }
   
   //----------------------------------------------------------------------------
@@ -102,19 +117,19 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       self.mMotionManager.gyroUpdateInterval = 1.0 / 60.0
       self.mMotionManager.startGyroUpdates()
       
-      // Configure a timer to fetch the accelerometer data.
-      self.mTimer = Timer(fire: Date(), interval: (1.0/60.0),
-                         repeats: true, block: { (timer) in
-                          // Get the gyro data.
-                          if let data = self.mMotionManager.gyroData {
-                            self.mPitch = CGFloat(data.rotationRate.x)
-                            self.mRoll = CGFloat(data.rotationRate.y)
-                            let yaw = data.rotationRate.z
-                          }
+      // Configure a timer to fetch the gyro data.
+      self.mGyroTimer = Timer(fire: Date(), interval: (1.0/60.0),
+                              repeats: true, block: { (timer) in
+                                // Get the gyro data.
+                                if let data = self.mMotionManager.gyroData {
+                                  self.mPitch = CGFloat(data.rotationRate.x)
+                                  self.mRoll = CGFloat(data.rotationRate.y)
+                                  let yaw = data.rotationRate.z
+                                }
       })
       
       // Add the timer to the current run loop.
-      RunLoop.current.add(self.mTimer!, forMode: .defaultRunLoopMode)
+      RunLoop.current.add(self.mGyroTimer!, forMode: .defaultRunLoopMode)
     }
   }
   
@@ -122,9 +137,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func stopGyros() {
     
-    if self.mTimer != nil {
-      self.mTimer?.invalidate()
-      self.mTimer = nil
+    if self.mGyroTimer != nil {
+      self.mGyroTimer?.invalidate()
+      self.mGyroTimer = nil
       
       self.mMotionManager.stopGyroUpdates()
     }
@@ -134,10 +149,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func tiltPlayer() {
     
-    let tilt = SKAction.rotate(byAngle: -mRoll / 500, duration: 0.01)
+    let tilt = SKAction.rotate(byAngle: mRoll / 100, duration: 0.01)
     let translate = SKAction.moveBy(
       x: mRoll * 10,
-      y: -mPitch * 20,
+      y: 0,//-mPitch * 20,
       duration: 0.1)
     
     let move = SKAction.sequence([translate, tilt])
