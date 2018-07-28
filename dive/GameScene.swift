@@ -47,16 +47,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       width: frame.width * 4,
       height: 10)
     
-    let floor = SKShapeNode.init(rect: rect)
-    floor.strokeColor = .blue
-    floor.lineWidth = 2.5
+    mFloor = SKShapeNode.init(rect: rect)
+    mFloor.strokeColor = .blue
+    mFloor.lineWidth = 2.5
+    mFloor.name = "floor"
     
-    floor.physicsBody = SKPhysicsBody.init(edgeLoopFrom: rect)
-    floor.physicsBody!.contactTestBitMask = floor.physicsBody!.collisionBitMask
-    floor.physicsBody?.isDynamic = false
-    floor.physicsBody?.contactTestBitMask = 0
+    mFloor.physicsBody = SKPhysicsBody.init(edgeLoopFrom: rect)
+    mFloor.physicsBody?.isDynamic = false
+    mFloor.physicsBody?.contactTestBitMask = 0
+    mFloor.physicsBody!.contactTestBitMask =
+      mFloor.physicsBody!.collisionBitMask
     
-    mFloor = floor
     self.addChild(mFloor)
   }
   
@@ -76,6 +77,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer = SKShapeNode.init(path: path.cgPath)
     mPlayer.strokeColor = SKColor.green
     mPlayer.lineWidth = 2.5
+    mPlayer.name = "player"
     
     mPlayer.physicsBody = SKPhysicsBody(edgeChainFrom: path.cgPath)
     mPlayer.physicsBody?.isDynamic = false
@@ -100,6 +102,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     square.position = CGPoint(x: randX, y: frame.height + 10)
     square.strokeColor = .red
     square.lineWidth = 2.5
+    square.name = "square"
     
     square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
     square.physicsBody?.isDynamic = true
@@ -185,5 +188,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     // Called before each frame is rendered
     
     tiltPlayer()
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func didBegin(_ contact: SKPhysicsContact) {
+    
+    if contact.bodyA.node?.name == "square" &&
+      contact.bodyB.node == mFloor {
+      contact.bodyA.node?.removeFromParent()
+    } else if contact.bodyB.node?.name == "square" &&
+      contact.bodyA.node == mFloor {
+      contact.bodyB.node?.removeFromParent()
+    }
   }
 }
