@@ -7,19 +7,22 @@
 //
 
 import CoreMotion
-import SpriteKit
 import GameplayKit
+import SpriteKit
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
   
-  private var mPlayer : SKShapeNode!
+  var mSquares : [SKShapeNode] = []
   
-  private var mMotionManager = CMMotionManager()
+  var mFloor : SKShapeNode!
+  var mPlayer : SKShapeNode!
   
-  private var mGyroTimer : Timer?
-  private var mSquareTimer : Timer?
+  var mMotionManager = CMMotionManager()
   
-  private var mRoll = CGFloat(0.0)
+  var mGyroTimer : Timer?
+  var mSquareTimer : Timer?
+  
+  var mRoll = CGFloat(0.0)
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
@@ -31,18 +34,30 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     startGyros()
     createPlayer()
     startSquares()
+    createFloor()
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func touchDown(atPoint pos: CGPoint) {
+  func createFloor() {
     
-  }
-  
-  //----------------------------------------------------------------------------
-  //----------------------------------------------------------------------------
-  func touchUp(atPoint pos: CGPoint) {
+    let rect = CGRect(
+      x: -frame.width * 2,
+      y: -frame.height,
+      width: frame.width * 4,
+      height: 10)
     
+    let floor = SKShapeNode.init(rect: rect)
+    floor.strokeColor = .blue
+    floor.lineWidth = 2.5
+    
+    floor.physicsBody = SKPhysicsBody.init(edgeLoopFrom: rect)
+    floor.physicsBody!.contactTestBitMask = floor.physicsBody!.collisionBitMask
+    floor.physicsBody?.isDynamic = false
+    floor.physicsBody?.contactTestBitMask = 0
+    
+    mFloor = floor
+    self.addChild(mFloor)
   }
   
   //----------------------------------------------------------------------------
@@ -81,9 +96,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     let square = SKShapeNode.init(rectOf: squareSize)
     
-    let screen = UIScreen.main.bounds
-    let randX = CGFloat(arc4random_uniform(UInt32(screen.width))) - screen.width / 2
-    square.position = CGPoint(x: randX, y: screen.height + 10)
+    let randX = CGFloat(arc4random_uniform(UInt32(frame.width))) - frame.width / 2
+    square.position = CGPoint(x: randX, y: frame.height + 10)
     square.strokeColor = .red
     square.lineWidth = 2.5
     
@@ -94,7 +108,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     square.physicsBody!.contactTestBitMask =
       square.physicsBody!.collisionBitMask
     
-    addChild(square)
+    mSquares.append(square)
+    
+    self.addChild(square)
   }
   
   //----------------------------------------------------------------------------
