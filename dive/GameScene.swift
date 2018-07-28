@@ -19,7 +19,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   private var mGyroTimer : Timer?
   private var mSquareTimer : Timer?
   
-  private var mPitch = CGFloat(0.0)
   private var mRoll = CGFloat(0.0)
   
   //----------------------------------------------------------------------------
@@ -59,18 +58,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     path.addLine(to: CGPoint(x: base / 2, y: height))
     path.close()
     
-    let player = SKShapeNode.init(path: path.cgPath)
-    player.strokeColor = SKColor.green
-    player.lineWidth = 2.5
+    mPlayer = SKShapeNode.init(path: path.cgPath)
+    mPlayer.strokeColor = SKColor.green
+    mPlayer.lineWidth = 2.5
     
-    player.physicsBody = SKPhysicsBody(edgeChainFrom: path.cgPath)
-    player.physicsBody!.contactTestBitMask = player.physicsBody!.collisionBitMask
-    player.physicsBody?.isDynamic = false
-    player.physicsBody?.contactTestBitMask = 0
-    player.physicsBody!.friction = 0.5
+    mPlayer.physicsBody = SKPhysicsBody(edgeChainFrom: path.cgPath)
+    mPlayer.physicsBody?.isDynamic = false
+    mPlayer.physicsBody?.contactTestBitMask = 0
+    mPlayer.physicsBody!.friction = 0.3
+    mPlayer.physicsBody!.contactTestBitMask =
+      mPlayer.physicsBody!.collisionBitMask
     
-    self.mPlayer = player
-    self.addChild(self.mPlayer)
+    addChild(mPlayer)
   }
   
   //----------------------------------------------------------------------------
@@ -89,12 +88,13 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     square.lineWidth = 2.5
     
     square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
-    square.physicsBody!.contactTestBitMask = square.physicsBody!.collisionBitMask
     square.physicsBody?.isDynamic = true
     square.physicsBody?.contactTestBitMask = 0
-    square.physicsBody!.friction = 0.5
+    square.physicsBody!.friction = 0.3
+    square.physicsBody!.contactTestBitMask =
+      square.physicsBody!.collisionBitMask
     
-    self.addChild(square)
+    addChild(square)
   }
   
   //----------------------------------------------------------------------------
@@ -114,22 +114,22 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func startGyros() {
     if mMotionManager.isGyroAvailable {
-      self.mMotionManager.gyroUpdateInterval = 1.0 / 60.0
-      self.mMotionManager.startGyroUpdates()
+      mMotionManager.gyroUpdateInterval = 1.0 / 60.0
+      mMotionManager.startGyroUpdates()
       
       // Configure a timer to fetch the gyro data.
-      self.mGyroTimer = Timer(fire: Date(), interval: (1.0/60.0),
-                              repeats: true, block: { (timer) in
-                                // Get the gyro data.
-                                if let data = self.mMotionManager.gyroData {
-                                  self.mPitch = CGFloat(data.rotationRate.x)
-                                  self.mRoll = CGFloat(data.rotationRate.y)
-                                  let yaw = data.rotationRate.z
-                                }
+      mGyroTimer = Timer(fire: Date(), interval: (1.0/60.0),
+                         repeats: true, block: { (timer) in
+                          // Get the gyro data.
+                          if let data = self.mMotionManager.gyroData {
+                            // let pitch = data.rotationRate.x
+                            self.mRoll = CGFloat(data.rotationRate.y)
+                            // let yaw = data.rotationRate.z
+                          }
       })
       
       // Add the timer to the current run loop.
-      RunLoop.current.add(self.mGyroTimer!, forMode: .defaultRunLoopMode)
+      RunLoop.current.add(mGyroTimer!, forMode: .defaultRunLoopMode)
     }
   }
   
@@ -137,11 +137,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func stopGyros() {
     
-    if self.mGyroTimer != nil {
-      self.mGyroTimer?.invalidate()
-      self.mGyroTimer = nil
+    if mGyroTimer != nil {
+      mGyroTimer?.invalidate()
+      mGyroTimer = nil
       
-      self.mMotionManager.stopGyroUpdates()
+      mMotionManager.stopGyroUpdates()
     }
   }
   
@@ -150,12 +150,15 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   func tiltPlayer() {
     
     let tilt = SKAction.rotate(byAngle: mRoll / 100, duration: 0.01)
-    let translate = SKAction.moveBy(
-      x: mRoll * 10,
-      y: 0,//-mPitch * 20,
-      duration: 0.1)
     
-    let move = SKAction.sequence([translate, tilt])
+    mPlayer.physicsBody?.applyImpulse(CGVector(dx: 100, dy: 0))
+    
+//    let translate = SKAction.moveBy(
+//      x: mRoll * 10,
+//      y: 0,//-mPitch * 20,
+//      duration: 0.1)
+    
+    let move = SKAction.sequence([tilt])
     
     mPlayer!.run(move)
   }
