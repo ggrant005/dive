@@ -67,7 +67,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     player.physicsBody!.contactTestBitMask = player.physicsBody!.collisionBitMask
     player.physicsBody?.isDynamic = false
     player.physicsBody?.contactTestBitMask = 0
-    player.physicsBody!.friction = 0.0
+    player.physicsBody!.friction = 0.5
     
     self.mPlayer = player
     self.addChild(self.mPlayer)
@@ -92,7 +92,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     square.physicsBody!.contactTestBitMask = square.physicsBody!.collisionBitMask
     square.physicsBody?.isDynamic = true
     square.physicsBody?.contactTestBitMask = 0
-    square.physicsBody!.friction = 0.0
+    square.physicsBody!.friction = 0.5
     
     self.addChild(square)
   }
