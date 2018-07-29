@@ -81,8 +81,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     mPlayer.physicsBody = SKPhysicsBody(edgeChainFrom: path.cgPath)
     mPlayer.physicsBody?.isDynamic = false
-    mPlayer.physicsBody?.contactTestBitMask = 0
     mPlayer.physicsBody!.friction = 0.3
+    mPlayer.physicsBody?.contactTestBitMask = 0
     mPlayer.physicsBody!.contactTestBitMask =
       mPlayer.physicsBody!.collisionBitMask
     
@@ -106,8 +106,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
     square.physicsBody?.isDynamic = true
-    square.physicsBody?.contactTestBitMask = 0
     square.physicsBody!.friction = 0.3
+    square.physicsBody?.contactTestBitMask = 0
     square.physicsBody!.contactTestBitMask =
       square.physicsBody!.collisionBitMask
     
@@ -168,7 +168,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func tiltPlayer() {
     
-    let tilt = SKAction.rotate(byAngle: mRoll / 100, duration: 0.01)
+//    let tilt = SKAction.rotate(byAngle: mRoll / 100, duration: 0.01)
     
     mPlayer.physicsBody?.applyImpulse(CGVector(dx: 100, dy: 0))
     
@@ -177,9 +177,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
 //      y: 0,//-mPitch * 20,
 //      duration: 0.1)
     
-    let move = SKAction.sequence([tilt])
-    
-    mPlayer!.run(move)
+//    let move = SKAction.sequence([tilt])
+//
+//    mPlayer!.run(move)
   }
 
   //----------------------------------------------------------------------------
@@ -192,14 +192,20 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    
+    mPlayer.physicsBody?.applyImpulse(CGVector(dx: 100, dy: 0))
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
   func didBegin(_ contact: SKPhysicsContact) {
     
-    if contact.bodyA.node?.name == "square" &&
-      contact.bodyB.node == mFloor {
-      contact.bodyA.node?.removeFromParent()
-    } else if contact.bodyB.node?.name == "square" &&
-      contact.bodyA.node == mFloor {
+    // delete squares that hit floor (fall below screen)
+    if contact.bodyA.node == mFloor {
       contact.bodyB.node?.removeFromParent()
+    } else if contact.bodyB.node == mFloor {
+      contact.bodyA.node?.removeFromParent()
     }
   }
 }
