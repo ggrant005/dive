@@ -10,12 +10,22 @@ import CoreMotion
 import GameplayKit
 import SpriteKit
 
+struct PhysicsCategory {
+  static let player : UInt32 = 0x1 << 0
+  static let square : UInt32 = 0x1 << 1
+  static let floor : UInt32 = 0x1 << 2
+  static let playerFloor : UInt32 = 0x1 << 3
+}
+
 class GameScene: SKScene, SKPhysicsContactDelegate {
   
   var mSquares : [SKShapeNode] = []
   
   var mFloor : SKShapeNode!
   var mPlayer : SKShapeNode!
+  var mPlayerFloor : SKShapeNode!
+  
+  let mPlayerBaseY = 0
   
   var mPrevPos = CGPoint(x: 0, y: 0)
   
@@ -25,19 +35,41 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   override func sceneDidLoad() {
     
-    physicsWorld.gravity = CGVector(dx: 0.0, dy: -2.0)
+    physicsWorld.gravity = CGVector(dx: 0.0, dy: -1.0)
     physicsWorld.contactDelegate = self
     
     createPlayer()
+    createPlayerFloor()
     startSquares()
     createFloor()
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
+  override func update(_ currentTime: TimeInterval) {
+    // Called before each frame is rendered
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func didBegin(_ contact: SKPhysicsContact) {
+    
+    let firstBody = contact.bodyA.node as! SKShapeNode
+    let secondBody = contact.bodyB.node as! SKShapeNode
+    
+    // delete squares that fall below screen and hit the floor
+    if firstBody == mFloor {
+      secondBody.removeFromParent()
+    } else if secondBody == mFloor {
+      firstBody.removeFromParent()
+    }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
   func touchDown(atPoint pos: CGPoint) {
     
-    movePlayer(toPoint: pos)
+    //movePlayer(toPoint: pos)
   }
   
   //----------------------------------------------------------------------------
@@ -92,12 +124,40 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mFloor.name = "floor"
     
     mFloor.physicsBody = SKPhysicsBody.init(edgeLoopFrom: rect)
+    
     mFloor.physicsBody?.isDynamic = false
-    mFloor.physicsBody?.contactTestBitMask = 0
-    mFloor.physicsBody!.contactTestBitMask =
-      mFloor.physicsBody!.collisionBitMask
+    
+    mFloor.physicsBody?.categoryBitMask = PhysicsCategory.floor
+    mFloor.physicsBody?.collisionBitMask = PhysicsCategory.square
+    mFloor.physicsBody?.contactTestBitMask = PhysicsCategory.square
     
     self.addChild(mFloor)
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func createPlayerFloor() {
+    
+    let rect = CGRect(
+      x: -frame.width,
+      y: 0,
+      width: frame.width * 2,
+      height: 10)
+    
+    mPlayerFloor = SKShapeNode.init(rect: rect)
+    mPlayerFloor.strokeColor = .blue
+    mPlayerFloor.lineWidth = 2.5
+    mPlayerFloor.name = "player-floor"
+    
+    mPlayerFloor.physicsBody = SKPhysicsBody.init(edgeLoopFrom: rect)
+    
+    mPlayerFloor.physicsBody?.isDynamic = false
+    
+    mPlayerFloor.physicsBody?.categoryBitMask = PhysicsCategory.playerFloor
+    mPlayerFloor.physicsBody?.collisionBitMask = PhysicsCategory.player
+    mPlayerFloor.physicsBody?.contactTestBitMask = PhysicsCategory.player
+    
+    //self.addChild(mPlayerFloor)
   }
   
   //----------------------------------------------------------------------------
@@ -108,7 +168,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     let height = base / 4
     
     let path = UIBezierPath()
-    path.move(to: CGPoint(x: 0, y: 0))
+    path.move(to: CGPoint(x: 0, y: mPlayerBaseY))
     path.addLine(to: CGPoint(x: -base / 2, y: height))
     path.addLine(to: CGPoint(x: base / 2, y: height))
     path.close()
@@ -119,13 +179,20 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer.name = "player"
     
     mPlayer.physicsBody = SKPhysicsBody.init(polygonFrom: path.cgPath)
-    mPlayer.physicsBody?.allowsRotation = true
-    mPlayer.physicsBody?.affectedByGravity = false
+    
     mPlayer.physicsBody?.isDynamic = true
+    mPlayer.physicsBody?.affectedByGravity = false
+    mPlayer.physicsBody?.allowsRotation = true
+    
     mPlayer.physicsBody!.friction = 0.3
-    mPlayer.physicsBody?.contactTestBitMask = 0
-    mPlayer.physicsBody!.contactTestBitMask =
-      mPlayer.physicsBody!.collisionBitMask
+    mPlayer.physicsBody!.linearDamping = 1.0 // stop from falling
+    mPlayer.physicsBody!.restitution = 0.0
+    
+    mPlayer.physicsBody?.categoryBitMask = PhysicsCategory.player
+    mPlayer.physicsBody?.collisionBitMask =
+      PhysicsCategory.playerFloor | PhysicsCategory.square
+    mPlayer.physicsBody?.contactTestBitMask =
+      PhysicsCategory.playerFloor | PhysicsCategory.square
     
     addChild(mPlayer)
   }
@@ -148,9 +215,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
     square.physicsBody?.isDynamic = true
     square.physicsBody!.friction = 0.3
-    square.physicsBody?.contactTestBitMask = 0
-    square.physicsBody!.contactTestBitMask =
-      square.physicsBody!.collisionBitMask
+    square.physicsBody!.restitution = 0.0
+    
+    square.physicsBody?.categoryBitMask = PhysicsCategory.square
+    square.physicsBody?.collisionBitMask =
+      PhysicsCategory.floor | PhysicsCategory.player
+    square.physicsBody?.contactTestBitMask =
+      PhysicsCategory.floor | PhysicsCategory.player
+    
+    let torque = (drand48() - 0.5) / 2.0
+    let tilt = SKAction.applyTorque(CGFloat(torque), duration: 0.01)
+    square.run(tilt)
     
     mSquares.append(square)
     
@@ -174,32 +249,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func movePlayer(toPoint pos: CGPoint) {
     
-    //    let tilt = SKAction.rotate(byAngle: pos.x / 100, duration: 0.01)
-    //    let move = SKAction.sequence([tilt])
-    
-    //    mPlayer!.run(move)
-    
     let oldPos = mPlayer.position
     mPlayer.position = CGPoint(x: pos.x, y: oldPos.y)
     
     mPrevPos = pos
-  }
-
-  //----------------------------------------------------------------------------
-  //----------------------------------------------------------------------------
-  override func update(_ currentTime: TimeInterval) {
-    // Called before each frame is rendered
-  }
-  
-  //----------------------------------------------------------------------------
-  //----------------------------------------------------------------------------
-  func didBegin(_ contact: SKPhysicsContact) {
-    
-    // delete squares that hit floor (fall below screen)
-    if contact.bodyA.node == mFloor {
-      contact.bodyB.node?.removeFromParent()
-    } else if contact.bodyB.node == mFloor {
-      contact.bodyA.node?.removeFromParent()
-    }
   }
 }
