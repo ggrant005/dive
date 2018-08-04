@@ -32,7 +32,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     self.backgroundColor = .white
     
-    physicsWorld.gravity = CGVector(dx: 0.0, dy: -5.0)
+    physicsWorld.gravity = CGVector(dx: 0.0, dy: -1.0)
     physicsWorld.contactDelegate = self
     
     createPlayer()
