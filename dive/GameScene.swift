@@ -14,6 +14,7 @@ struct PhysicsCategory {
   static let player : UInt32 = 0x1 << 0
   static let square : UInt32 = 0x1 << 1
   static let floor : UInt32 = 0x1 << 2
+  static let background : UInt32 = 0x1 << 3
 }
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
@@ -27,16 +28,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   var mPlayerFloor : SKShapeNode!
   
   var mAccelTimer : Timer?
-  var mGyroTimer : Timer?
   var mSquareTimer : Timer?
   
   var mAx = CGFloat(0.0)
   var mAy = CGFloat(0.0)
   var mAz = CGFloat(0.0)
-  
-  var mPitch = CGFloat(0.0)
-  var mRoll = CGFloat(0.0)
-  var mYaw = CGFloat(0.0)
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
@@ -153,42 +149,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func startGyros() {
-    if mMotionManager.isGyroAvailable {
-      mMotionManager.gyroUpdateInterval = 1.0 / 60.0
-      mMotionManager.startGyroUpdates()
-      
-      // Configure a timer to fetch the gyro data.
-      mGyroTimer = Timer(
-        fire: Date(),
-        interval: (1.0/60.0),
-        repeats: true, block: {
-          (timer) in if let data = self.mMotionManager.gyroData {
-            self.mPitch = CGFloat(data.rotationRate.x)
-            self.mRoll = CGFloat(data.rotationRate.y)
-            self.mYaw = CGFloat(data.rotationRate.z)
-          }
-      })
-      
-      // Add the timer to the current run loop.
-      RunLoop.current.add(mGyroTimer!, forMode: .defaultRunLoopMode)
-    }
-  }
-  
-  //----------------------------------------------------------------------------
-  //----------------------------------------------------------------------------
-  func stopGyros() {
-    
-    if mGyroTimer != nil {
-      mGyroTimer?.invalidate()
-      mGyroTimer = nil
-      
-      mMotionManager.stopGyroUpdates()
-    }
-  }
-  
-  //----------------------------------------------------------------------------
-  //----------------------------------------------------------------------------
   func createFloor() {
     
     let rect = CGRect(
@@ -207,8 +167,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mFloor.physicsBody?.isDynamic = false
     
     mFloor.physicsBody?.categoryBitMask = PhysicsCategory.floor
-    mFloor.physicsBody?.collisionBitMask = PhysicsCategory.square
-    mFloor.physicsBody?.contactTestBitMask = PhysicsCategory.square
+    mFloor.physicsBody?.collisionBitMask =
+      PhysicsCategory.square | PhysicsCategory.background
+    mFloor.physicsBody?.contactTestBitMask =
+      PhysicsCategory.square | PhysicsCategory.background
     
     self.addChild(mFloor)
   }
@@ -218,7 +180,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   func createPlayer() {
     
     let base = CGFloat(180)
-    let height = base
+    let height = base / 4
     let origin = CGPoint(x: 0, y: 0)
     
     let path = UIBezierPath()
@@ -228,8 +190,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     path.close()
 
     mPlayer = SKShapeNode.init(path: path.cgPath)
-    mPlayer.strokeColor = .blue
-    mPlayer.lineWidth = 4.5
+    mPlayer.fillColor = .green
+    mPlayer.strokeColor = .black
+    mPlayer.lineWidth = 1.5
     mPlayer.name = "player"
     
     mPlayer.physicsBody = SKPhysicsBody.init(polygonFrom: path.cgPath)
@@ -238,7 +201,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer.physicsBody?.affectedByGravity = false
     mPlayer.physicsBody?.allowsRotation = true
     
-    mPlayer.physicsBody!.friction = 0.5
+    mPlayer.physicsBody!.friction = 0.9
     mPlayer.physicsBody!.linearDamping = 1.0 // stop from falling
     mPlayer.physicsBody!.restitution = 0.0
     mPlayer.physicsBody!.mass = 1.0
@@ -248,12 +211,13 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer.physicsBody?.contactTestBitMask = PhysicsCategory.square
     
     // movement constraints
+    let limit = frame.width / 3
     let xLim = SKConstraint.positionX(SKRange(
-      lowerLimit: -frame.width / 2,
-      upperLimit: frame.width / 2))
+      lowerLimit: -limit,
+      upperLimit: limit))
     let yLim = SKConstraint.positionY(SKRange(lowerLimit: 0, upperLimit: 0))
     
-    let rot = CGFloat.pi / 4
+    let rot = CGFloat.pi / 8
     let faceUp = SKConstraint.zRotation(
       SKRange(lowerLimit: -rot, upperLimit: rot))
     
@@ -273,9 +237,15 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     let randX = CGFloat(arc4random_uniform(UInt32(frame.width))) - frame.width / 2
     square.position = CGPoint(x: randX, y: frame.height + 10)
-    square.strokeColor = .red
-    square.lineWidth = 2.5
+    square.fillColor = .red
+    square.strokeColor = .black
+    square.lineWidth = 1.5
     square.name = "square"
+    
+    let maxZ : CGFloat = 1.0
+    let rand = CGFloat(arc4random_uniform(UInt32(maxZ * 2.0 + 1.0)))
+    square.zPosition = rand - maxZ
+    square.setScale(1.0 + square.zPosition * 0.3)
     
     square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
     
@@ -283,13 +253,19 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     square.physicsBody!.friction = 0.3
     square.physicsBody!.restitution = 0.1
-    mPlayer.physicsBody!.mass = 0.5
+    square.physicsBody!.mass = 0.5
     
-    square.physicsBody?.categoryBitMask = PhysicsCategory.square
-    square.physicsBody?.collisionBitMask =
-      PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.square
-    square.physicsBody?.contactTestBitMask =
-      PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.square
+    if (square.zPosition == 0.0) {
+      square.physicsBody?.categoryBitMask = PhysicsCategory.square
+      square.physicsBody?.collisionBitMask =
+        PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.square
+      square.physicsBody?.contactTestBitMask =
+        PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.square
+    } else {
+      square.physicsBody?.categoryBitMask = PhysicsCategory.background
+      square.physicsBody?.collisionBitMask = PhysicsCategory.floor
+      square.physicsBody?.contactTestBitMask = PhysicsCategory.floor
+    }
     
     let torque = (drand48() - 0.5) / 2.0
     let tilt = SKAction.applyTorque(CGFloat(torque), duration: 0.01)
