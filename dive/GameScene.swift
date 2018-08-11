@@ -18,13 +18,18 @@ struct PhysicsCategory {
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
   
+  var mMotionManager = CMMotionManager()
+  
   var mSquares : [SKShapeNode] = []
   
   var mFloor : SKShapeNode!
   var mPlayer : SKShapeNode!
   var mPlayerFloor : SKShapeNode!
   
+  var mGyroTimer : Timer?
   var mSquareTimer : Timer?
+  
+  var mRoll = CGFloat(0.0)
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
@@ -35,6 +40,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     physicsWorld.gravity = CGVector(dx: 0.0, dy: -1.0)
     physicsWorld.contactDelegate = self
     
+    startGyros()
     createPlayer()
     startSquares()
     createFloor()
@@ -44,6 +50,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   override func update(_ currentTime: TimeInterval) {
     // Called before each frame is rendered
+    
+    movePlayer()
   }
   
   //----------------------------------------------------------------------------
@@ -64,15 +72,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   func touchDown(atPoint pos: CGPoint) {
-    
-    //movePlayer(toPoint: pos)
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
   func touchMoved(toPoint pos: CGPoint) {
-    
-    movePlayer(toPoint: pos)
   }
   
   //----------------------------------------------------------------------------
@@ -106,6 +110,41 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
+  func startGyros() {
+    if mMotionManager.isGyroAvailable {
+      mMotionManager.gyroUpdateInterval = 1.0 / 60.0
+      mMotionManager.startGyroUpdates()
+      
+      // Configure a timer to fetch the gyro data.
+      mGyroTimer = Timer(fire: Date(), interval: (1.0/60.0),
+                         repeats: true, block: { (timer) in
+                          // Get the gyro data.
+                          if let data = self.mMotionManager.gyroData {
+                            // let pitch = data.rotationRate.x
+                            self.mRoll = CGFloat(data.rotationRate.y)
+                            // let yaw = data.rotationRate.z
+                          }
+      })
+      
+      // Add the timer to the current run loop.
+      RunLoop.current.add(mGyroTimer!, forMode: .defaultRunLoopMode)
+    }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func stopGyros() {
+    
+    if mGyroTimer != nil {
+      mGyroTimer?.invalidate()
+      mGyroTimer = nil
+      
+      mMotionManager.stopGyroUpdates()
+    }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
   func createFloor() {
     
     let rect = CGRect(
@@ -115,7 +154,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       height: 10)
     
     mFloor = SKShapeNode.init(rect: rect)
-    mFloor.strokeColor = .blue
+    mFloor.strokeColor = .green
     mFloor.lineWidth = 2.5
     mFloor.name = "floor"
     
@@ -134,17 +173,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func createPlayer() {
     
-    let base = 180
-    let height = base / 4
+    let base = CGFloat(180)
+    let height = base
+    let origin = CGPoint(x: 0, y: -frame.height / 2)
     
     let path = UIBezierPath()
-    path.move(to: CGPoint(x: 0, y: 0))
-    path.addLine(to: CGPoint(x: -base / 2, y: height))
-    path.addLine(to: CGPoint(x: base / 2, y: height))
+    path.move(to: origin)
+    path.addLine(to: CGPoint(x: origin.x - base / 2, y: origin.y + height))
+    path.addLine(to: CGPoint(x: origin.x + base / 2, y: origin.y + height))
     path.close()
 
     mPlayer = SKShapeNode.init(path: path.cgPath)
-    mPlayer.strokeColor = .green
+    mPlayer.strokeColor = .blue
     mPlayer.lineWidth = 4.5
     mPlayer.name = "player"
     
@@ -163,11 +203,15 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer.physicsBody?.collisionBitMask = PhysicsCategory.square
     mPlayer.physicsBody?.contactTestBitMask = PhysicsCategory.square
     
-    let moveHorizontal = SKConstraint.positionY(
-      SKRange(lowerLimit: 0, upperLimit: 0))
+    // movement constraints
+    let xLim = SKConstraint.positionX(SKRange(lowerLimit: 0, upperLimit: 0))
+    let yLim = SKConstraint.positionY(SKRange(lowerLimit: 0, upperLimit: 0))
+    
+    let rot = CGFloat.pi / 4
     let faceUp = SKConstraint.zRotation(
-      SKRange(lowerLimit: -CGFloat.pi / 16, upperLimit: CGFloat.pi / 16))
-    mPlayer.constraints = [moveHorizontal, faceUp]
+      SKRange(lowerLimit: -rot, upperLimit: rot))
+    
+    mPlayer.constraints = [xLim, yLim, faceUp]
     
     addChild(mPlayer)
   }
@@ -205,8 +249,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     let tilt = SKAction.applyTorque(CGFloat(torque), duration: 0.01)
     square.run(tilt)
     
-    mSquares.append(square)
-    
     self.addChild(square)
   }
   
@@ -218,9 +260,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       fire: Date(),
       interval: (30.0 / 60.0),
       repeats: true,
-      block: {
-        (timer) in self.createSquare()
-    })
+      block: { (timer) in self.createSquare() })
     
     // Add the timer to the current run loop.
     RunLoop.current.add(self.mSquareTimer!, forMode: .defaultRunLoopMode)
@@ -228,9 +268,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func movePlayer(toPoint pos: CGPoint) {
+  func movePlayer() {
     
-    let oldPos = mPlayer.position
-    mPlayer.position = CGPoint(x: pos.x, y: oldPos.y)
+//    let tilt = SKAction.rotate(byAngle: mRoll / 100, duration: 0.01)
+    let translate = SKAction.moveBy(x: mRoll / 100, y: 0, duration: 0.1)
+    let move = SKAction.sequence([translate])
+    
+    for square in mSquares {
+      square.run(move)
+    }
   }
 }
