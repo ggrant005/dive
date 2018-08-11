@@ -26,10 +26,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   var mPlayer : SKShapeNode!
   var mPlayerFloor : SKShapeNode!
   
+  var mAccelTimer : Timer?
   var mGyroTimer : Timer?
   var mSquareTimer : Timer?
   
+  var mAx = CGFloat(0.0)
+  var mAy = CGFloat(0.0)
+  var mAz = CGFloat(0.0)
+  
+  var mPitch = CGFloat(0.0)
   var mRoll = CGFloat(0.0)
+  var mYaw = CGFloat(0.0)
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
@@ -40,7 +47,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     physicsWorld.gravity = CGVector(dx: 0.0, dy: -1.0)
     physicsWorld.contactDelegate = self
     
-    startGyros()
+    startAccel()
     createPlayer()
     startSquares()
     createFloor()
@@ -110,20 +117,57 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
+  func startAccel() {
+    if mMotionManager.isAccelerometerAvailable {
+      mMotionManager.accelerometerUpdateInterval = 1.0 / 60.0
+      mMotionManager.startAccelerometerUpdates()
+      
+      // Configure a timer to fetch the accel data.
+      mAccelTimer = Timer(
+        fire: Date(),
+        interval: (1.0/60.0),
+        repeats: true, block: {
+          (timer) in if let data = self.mMotionManager.accelerometerData {
+            self.mAx = CGFloat(data.acceleration.x)
+            self.mAy = CGFloat(data.acceleration.y)
+            self.mAz = CGFloat(data.acceleration.z)
+          }
+      })
+      
+      // Add the timer to the current run loop.
+      RunLoop.current.add(mAccelTimer!, forMode: .defaultRunLoopMode)
+    }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func stopAccel() {
+    
+    if mAccelTimer != nil {
+      mAccelTimer?.invalidate()
+      mAccelTimer = nil
+      
+      mMotionManager.stopGyroUpdates()
+    }
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
   func startGyros() {
     if mMotionManager.isGyroAvailable {
       mMotionManager.gyroUpdateInterval = 1.0 / 60.0
       mMotionManager.startGyroUpdates()
       
       // Configure a timer to fetch the gyro data.
-      mGyroTimer = Timer(fire: Date(), interval: (1.0/60.0),
-                         repeats: true, block: { (timer) in
-                          // Get the gyro data.
-                          if let data = self.mMotionManager.gyroData {
-                            // let pitch = data.rotationRate.x
-                            self.mRoll = CGFloat(data.rotationRate.y)
-                            // let yaw = data.rotationRate.z
-                          }
+      mGyroTimer = Timer(
+        fire: Date(),
+        interval: (1.0/60.0),
+        repeats: true, block: {
+          (timer) in if let data = self.mMotionManager.gyroData {
+            self.mPitch = CGFloat(data.rotationRate.x)
+            self.mRoll = CGFloat(data.rotationRate.y)
+            self.mYaw = CGFloat(data.rotationRate.z)
+          }
       })
       
       // Add the timer to the current run loop.
@@ -175,7 +219,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     let base = CGFloat(180)
     let height = base
-    let origin = CGPoint(x: 0, y: -frame.height / 2)
+    let origin = CGPoint(x: 0, y: 0)
     
     let path = UIBezierPath()
     path.move(to: origin)
@@ -204,7 +248,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer.physicsBody?.contactTestBitMask = PhysicsCategory.square
     
     // movement constraints
-    let xLim = SKConstraint.positionX(SKRange(lowerLimit: 0, upperLimit: 0))
+    let xLim = SKConstraint.positionX(SKRange(
+      lowerLimit: -frame.width / 2,
+      upperLimit: frame.width / 2))
     let yLim = SKConstraint.positionY(SKRange(lowerLimit: 0, upperLimit: 0))
     
     let rot = CGFloat.pi / 4
@@ -270,12 +316,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func movePlayer() {
     
-//    let tilt = SKAction.rotate(byAngle: mRoll / 100, duration: 0.01)
-    let translate = SKAction.moveBy(x: mRoll / 100, y: 0, duration: 0.1)
-    let move = SKAction.sequence([translate])
+    let force = CGVector(dx: 5000 * mAx, dy: 0)
+    mPlayer.physicsBody?.applyForce(force)
     
-    for square in mSquares {
-      square.run(move)
-    }
+//    for square in mSquares {
+//      square.run(move)
+//    }
   }
 }
