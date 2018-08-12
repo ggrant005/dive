@@ -12,23 +12,27 @@ import SpriteKit
 
 struct PhysicsCategory {
   static let player : UInt32 = 0x1 << 0
-  static let square : UInt32 = 0x1 << 1
+  static let box : UInt32 = 0x1 << 1
   static let floor : UInt32 = 0x1 << 2
-  static let background : UInt32 = 0x1 << 3
 }
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
   
   var mMotionManager = CMMotionManager()
   
-  var mSquares : [SKShapeNode] = []
+  var mJoints : [SKPhysicsJointLimit] = []
+  let mLimitJointLength : CGFloat = 25
+  
+  var mJoinedBoxes : [SKShapeNode] = []
+  
+  var mBoxes : [SKShapeNode] = []
   
   var mFloor : SKShapeNode!
   var mPlayer : SKShapeNode!
   var mPlayerFloor : SKShapeNode!
   
   var mAccelTimer : Timer?
-  var mSquareTimer : Timer?
+  var mBoxTimer : Timer?
   
   var mAx = CGFloat(0.0)
   var mAy = CGFloat(0.0)
@@ -45,7 +49,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     startAccel()
     createPlayer()
-    startSquares()
+    startBoxes()
     createFloor()
   }
   
@@ -64,7 +68,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     let firstBody = contact.bodyA.node as! SKShapeNode
     let secondBody = contact.bodyB.node as! SKShapeNode
     
-    // delete squares that fall below screen and hit the floor
+    // connect boxes that hit player
+    if firstBody == mPlayer && secondBody.name == "box" {
+      connectBox(bodyA: secondBody, bodyB: firstBody)
+    } else if firstBody.name == "box" && secondBody == mPlayer {
+      connectBox(bodyA: firstBody, bodyB: secondBody)
+    }
+    
+    // delete boxes that fall below screen and hit the floor
     if firstBody == mFloor {
       secondBody.removeFromParent()
     } else if secondBody == mFloor {
@@ -167,10 +178,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mFloor.physicsBody?.isDynamic = false
     
     mFloor.physicsBody?.categoryBitMask = PhysicsCategory.floor
-    mFloor.physicsBody?.collisionBitMask =
-      PhysicsCategory.square | PhysicsCategory.background
-    mFloor.physicsBody?.contactTestBitMask =
-      PhysicsCategory.square | PhysicsCategory.background
+    mFloor.physicsBody?.collisionBitMask = PhysicsCategory.box
+    mFloor.physicsBody?.contactTestBitMask = PhysicsCategory.box
     
     self.addChild(mFloor)
   }
@@ -207,8 +216,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mPlayer.physicsBody!.mass = 1.0
     
     mPlayer.physicsBody?.categoryBitMask = PhysicsCategory.player
-    mPlayer.physicsBody?.collisionBitMask = PhysicsCategory.square
-    mPlayer.physicsBody?.contactTestBitMask = PhysicsCategory.square
+    mPlayer.physicsBody?.collisionBitMask = PhysicsCategory.box
+    mPlayer.physicsBody?.contactTestBitMask = PhysicsCategory.box
     
     // movement constraints
     let limit = frame.width / 3
@@ -217,7 +226,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       upperLimit: limit))
     let yLim = SKConstraint.positionY(SKRange(lowerLimit: 0, upperLimit: 0))
     
-    let rot = CGFloat.pi / 8
+    let rot = CGFloat(0)//CGFloat.pi / 8
     let faceUp = SKConstraint.zRotation(
       SKRange(lowerLimit: -rot, upperLimit: rot))
     
@@ -228,64 +237,53 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func createSquare() {
+  func createBox() {
     
     let side = 30
-    let squareSize = CGSize(width: side, height: side)
+    let boxSize = CGSize(width: side, height: side)
     
-    let square = SKShapeNode.init(rectOf: squareSize)
+    let box = SKShapeNode.init(rectOf: boxSize)
     
     let randX = CGFloat(arc4random_uniform(UInt32(frame.width))) - frame.width / 2
-    square.position = CGPoint(x: randX, y: frame.height + 10)
-    square.fillColor = .red
-    square.strokeColor = .black
-    square.lineWidth = 1.5
-    square.name = "square"
+    box.position = CGPoint(x: randX, y: frame.height + 10)
+    box.fillColor = .red
+    box.strokeColor = .black
+    box.lineWidth = 1.5
+    box.name = "box"
     
-    let maxZ : CGFloat = 1.0
-    let rand = CGFloat(arc4random_uniform(UInt32(maxZ * 2.0 + 1.0)))
-    square.zPosition = rand - maxZ
-    square.setScale(1.0 + square.zPosition * 0.3)
+    box.physicsBody = SKPhysicsBody.init(rectangleOf: boxSize)
     
-    square.physicsBody = SKPhysicsBody.init(rectangleOf: squareSize)
+    box.physicsBody?.isDynamic = true
     
-    square.physicsBody?.isDynamic = true
+    box.physicsBody!.friction = 0.3
+    box.physicsBody!.restitution = 0.1
+    box.physicsBody!.mass = 0.5
     
-    square.physicsBody!.friction = 0.3
-    square.physicsBody!.restitution = 0.1
-    square.physicsBody!.mass = 0.5
-    
-    if (square.zPosition == 0.0) {
-      square.physicsBody?.categoryBitMask = PhysicsCategory.square
-      square.physicsBody?.collisionBitMask =
-        PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.square
-      square.physicsBody?.contactTestBitMask =
-        PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.square
-    } else {
-      square.physicsBody?.categoryBitMask = PhysicsCategory.background
-      square.physicsBody?.collisionBitMask = PhysicsCategory.floor
-      square.physicsBody?.contactTestBitMask = PhysicsCategory.floor
-    }
+    box.physicsBody?.categoryBitMask = PhysicsCategory.box
+    box.physicsBody?.collisionBitMask =
+      PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.box
+    box.physicsBody?.contactTestBitMask =
+      PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.box
     
     let torque = (drand48() - 0.5) / 2.0
     let tilt = SKAction.applyTorque(CGFloat(torque), duration: 0.01)
-    square.run(tilt)
+    box.run(tilt)
     
-    self.addChild(square)
+    self.addChild(box)
   }
   
   //----------------------------------------------------------------------------
   //----------------------------------------------------------------------------
-  func startSquares() {
+  func startBoxes() {
     
-    self.mSquareTimer = Timer(
+    self.mBoxTimer = Timer(
       fire: Date(),
       interval: (30.0 / 60.0),
       repeats: true,
-      block: { (timer) in self.createSquare() })
+      block: { (timer) in self.createBox() })
     
     // Add the timer to the current run loop.
-    RunLoop.current.add(self.mSquareTimer!, forMode: .defaultRunLoopMode)
+    RunLoop.current.add(self.mBoxTimer!, forMode: .defaultRunLoopMode)
   }
   
   //----------------------------------------------------------------------------
@@ -294,9 +292,35 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     let force = CGVector(dx: 5000 * mAx, dy: 0)
     mPlayer.physicsBody?.applyForce(force)
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func connectBox(bodyA : SKShapeNode!, bodyB : SKShapeNode!) {
     
-//    for square in mSquares {
-//      square.run(move)
-//    }
+    if mJoinedBoxes.count == 0 {
+      connectNodes(bodyA: bodyA, bodyB: bodyB)
+    } else {
+      connectNodes(bodyA: bodyA, bodyB: mJoinedBoxes.last)
+    }
+    
+    mJoinedBoxes.append(bodyA)
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func connectNodes(bodyA : SKShapeNode!, bodyB : SKShapeNode!) {
+    
+    let joint = SKPhysicsJointLimit.joint(
+      withBodyA: bodyA.physicsBody!,
+      bodyB: bodyB.physicsBody!,
+      anchorA: bodyA.position,
+      anchorB: bodyB.position)
+    
+    joint.maxLength = mLimitJointLength
+    
+    mJoints.append(joint)
+    
+    physicsWorld.add(joint)
   }
 }
