@@ -12,8 +12,9 @@ import SpriteKit
 
 struct PhysicsCategory {
   static let player : UInt32 = 0x1 << 0
-  static let box : UInt32 = 0x1 << 1
-  static let floor : UInt32 = 0x1 << 2
+  static let floor : UInt32 = 0x1 << 1
+  static let box : UInt32 = 0x1 << 2
+  static let joinedBox : UInt32 = 0x1 << 3
 }
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
@@ -21,7 +22,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   var mMotionManager = CMMotionManager()
   
   var mJoints : [SKPhysicsJointLimit] = []
-  let mLimitJointLength : CGFloat = 25
+  let mMaxJointLength : CGFloat = 30
   
   var mJoinedBoxes : [SKShapeNode] = []
   
@@ -77,8 +78,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     // delete boxes that fall below screen and hit the floor
     if firstBody == mFloor {
+      if secondBody.name == "joinedBox" {
+        reset()
+      }
       secondBody.removeFromParent()
     } else if secondBody == mFloor {
+      if firstBody.name == "joinedBox" {
+        reset()
+      }
       firstBody.removeFromParent()
     }
   }
@@ -169,7 +176,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       height: 10)
     
     mFloor = SKShapeNode.init(rect: rect)
-    mFloor.strokeColor = .green
+    mFloor.fillColor = .black
+    mFloor.strokeColor = .black
     mFloor.lineWidth = 2.5
     mFloor.name = "floor"
     
@@ -178,8 +186,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     mFloor.physicsBody?.isDynamic = false
     
     mFloor.physicsBody?.categoryBitMask = PhysicsCategory.floor
-    mFloor.physicsBody?.collisionBitMask = PhysicsCategory.box
-    mFloor.physicsBody?.contactTestBitMask = PhysicsCategory.box
+    mFloor.physicsBody?.collisionBitMask =
+      PhysicsCategory.box |
+      PhysicsCategory.joinedBox
+    mFloor.physicsBody?.contactTestBitMask =
+      PhysicsCategory.box |
+      PhysicsCategory.joinedBox
     
     self.addChild(mFloor)
   }
@@ -261,13 +273,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     box.physicsBody?.categoryBitMask = PhysicsCategory.box
     box.physicsBody?.collisionBitMask =
-      PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.box
+      PhysicsCategory.box |
+      PhysicsCategory.floor |
+      PhysicsCategory.player
     box.physicsBody?.contactTestBitMask =
-      PhysicsCategory.floor | PhysicsCategory.player | PhysicsCategory.box
+      PhysicsCategory.box |
+      PhysicsCategory.floor |
+      PhysicsCategory.player
     
-    let torque = (drand48() - 0.5) / 2.0
-    let tilt = SKAction.applyTorque(CGFloat(torque), duration: 0.01)
-    box.run(tilt)
+    let torque = CGFloat(drand48() - 0.5) * 10
+    box.physicsBody?.applyAngularImpulse(torque)
+    
+    mBoxes.append(box)
     
     self.addChild(box)
   }
@@ -304,6 +321,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
       connectNodes(bodyA: bodyA, bodyB: mJoinedBoxes.last)
     }
     
+    bodyA.name = "joinedBox"
+    
+    bodyA.physicsBody?.categoryBitMask = PhysicsCategory.joinedBox
+    bodyA.physicsBody?.collisionBitMask =
+      PhysicsCategory.box |
+      PhysicsCategory.floor |
+      PhysicsCategory.joinedBox
+    bodyA.physicsBody?.contactTestBitMask =
+      PhysicsCategory.box |
+      PhysicsCategory.floor |
+      PhysicsCategory.joinedBox
+    
     mJoinedBoxes.append(bodyA)
   }
   
@@ -311,16 +340,34 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
   //----------------------------------------------------------------------------
   func connectNodes(bodyA : SKShapeNode!, bodyB : SKShapeNode!) {
     
+    // place block down where it will hang
+    bodyA.position = CGPoint(
+      x: bodyB.position.x,
+      y: bodyB.position.y - mMaxJointLength)
+    
     let joint = SKPhysicsJointLimit.joint(
       withBodyA: bodyA.physicsBody!,
       bodyB: bodyB.physicsBody!,
       anchorA: bodyA.position,
       anchorB: bodyB.position)
     
-    joint.maxLength = mLimitJointLength
+    joint.maxLength = mMaxJointLength
     
     mJoints.append(joint)
     
     physicsWorld.add(joint)
+  }
+  
+  //----------------------------------------------------------------------------
+  //----------------------------------------------------------------------------
+  func reset() {
+    
+    for box in mBoxes {
+      box.removeFromParent()
+    }
+    
+    mBoxes.removeAll()
+    mJoinedBoxes.removeAll()
+    mJoints.removeAll()
   }
 }
